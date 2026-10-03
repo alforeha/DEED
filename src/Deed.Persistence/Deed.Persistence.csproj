@@ -9,4 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../Deed.Core/Deed.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Deed.Persistence.Tests" />
+  </ItemGroup>
 </Project>
