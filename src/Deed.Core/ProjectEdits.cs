@@ -114,6 +114,28 @@ public static class ProjectEdits
                 DraftedCompletion = distance is null ? course.DraftedCompletion : null }, null);
         });
 
+    public static ProjectEditResult EditLineInputs(DeedProject project, RecordId recordId,
+        CourseId courseId, string? recordedText, string? bearingText, Distance? recordedDistance,
+        DraftedDistanceCompletion? draftedCompletion, Distance? finalPart) =>
+        EditCourse(project, recordId, courseId, course =>
+        {
+            if (recordedText is null || recordedDistance is { } recorded && !Valid(recorded) ||
+                draftedCompletion is { } drafted && (!Valid(drafted.Distance) ||
+                    string.IsNullOrWhiteSpace(drafted.Reason)) ||
+                recordedDistance is not null && draftedCompletion is not null ||
+                finalPart is { } final && !Valid(final))
+                return (null, new Diagnostic(DiagnosticCodes.EditInvalidValue,
+                    DiagnosticSeverity.Error, "Line inputs are invalid.", "course", courseId.ToString()));
+            var parsed = BearingParser.Parse(bearingText);
+            if (!parsed.IsSuccess)
+                return (null, new Diagnostic(DiagnosticCodes.EditInvalidBearing,
+                    DiagnosticSeverity.Error, parsed.Diagnostic!.Value.Message,
+                    "course", courseId.ToString()));
+            return (course with { OriginalRecordedText = recordedText, ParsedBearing = parsed.Value,
+                RecordedDistance = recordedDistance, DraftedCompletion = draftedCompletion,
+                FinalPart = finalPart }, null);
+        });
+
     public static ProjectEditResult EditBearing(DeedProject project, RecordId recordId,
         CourseId courseId, string? bearingText) => EditCourse(project, recordId, courseId, course =>
     {

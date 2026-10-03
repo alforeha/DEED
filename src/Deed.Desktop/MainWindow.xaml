@@ -1,0 +1,79 @@
+<Window x:Class="Deed.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Deed.Desktop"
+        Title="DEED" Width="1500" Height="900" MinWidth="1050" MinHeight="650" Closing="Window_Closing">
+  <DockPanel>
+    <ToolBar DockPanel.Dock="Top">
+      <Button Content="New" Click="New_Click"/><Button Content="Open" Click="Open_Click"/>
+      <Button Content="Save" Click="Save_Click"/><Button Content="Save As" Click="SaveAs_Click"/>
+      <Separator/><Button Content="Undo" Click="Undo_Click"/><Button Content="Redo" Click="Redo_Click"/>
+      <Separator/><Button Content="Fit Drawing" Click="Fit_Click"/>
+    </ToolBar>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="320"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Background="#f1f3f5">
+        <StackPanel Margin="12">
+          <TextBlock Text="Course entry" FontWeight="Bold" FontSize="18" Margin="0,0,0,8"/>
+          <TextBlock Text="POB Easting"/><TextBox x:Name="PobE" Text="1000"/>
+          <TextBlock Text="POB Northing"/><TextBox x:Name="PobN" Text="2000"/>
+          <TextBlock Text="POB role"/><TextBox x:Name="PobRole" Text="POB"/>
+          <TextBlock Text="POB monument description"/><TextBox x:Name="PobMonument"/>
+          <TextBlock Text="POB monument evidence"/><TextBox x:Name="PobEvidence"/>
+          <TextBlock Text="Parent course"/><ComboBox x:Name="ParentCourse" DisplayMemberPath="Label" SelectionChanged="Parent_SelectionChanged"/>
+          <TextBlock Text="Start point on parent"/><ComboBox x:Name="StartPoint" DisplayMemberPath="Label"/>
+          <TextBlock Text="Existing end point (optional)"/><ComboBox x:Name="ExistingEnd" DisplayMemberPath="Label"/>
+          <TextBlock Text="Exact recorded call"/><TextBox x:Name="RecordedCall"/>
+          <TextBlock Text="Bearing"/><TextBox x:Name="Bearing" Text="N 0° E"/>
+          <TextBlock Text="Recorded distance (blank if drafted)"/><TextBox x:Name="RecordedDistance"/>
+          <TextBlock Text="Drafted distance (optional)"/><TextBox x:Name="DraftedDistance"/>
+          <TextBlock Text="Drafted reason"/><TextBox x:Name="DraftedReason"/>
+          <TextBlock Text="Final part (optional)"/><TextBox x:Name="FinalPart"/>
+          <TextBlock Text="Endpoint role"/><TextBox x:Name="EndpointRole" Text="corner"/>
+          <TextBlock Text="Endpoint monument description"/><TextBox x:Name="EndpointMonument"/>
+          <TextBlock Text="Endpoint monument evidence"/><TextBox x:Name="EndpointEvidence"/>
+          <WrapPanel Margin="0,10,0,0"><Button x:Name="AddRootButton" Content="Add Root" Click="AddRoot_Click" Margin="0,0,6,0"/>
+            <Button x:Name="AddChildButton" Content="Add Child" Click="AddChild_Click"/></WrapPanel>
+          <Separator Margin="0,12"/>
+          <TextBlock Text="Along point" FontWeight="Bold" FontSize="18"/>
+          <TextBlock Text="Host course"/><ComboBox x:Name="AlongHost" DisplayMemberPath="Label" SelectionChanged="AlongHost_SelectionChanged"/>
+          <TextBlock Text="Insert before position (1-based)"/><ComboBox x:Name="AlongPosition"/>
+          <TextBlock Text="From previous distance"/><TextBox x:Name="AlongDistance"/>
+          <TextBlock Text="Role"/><TextBox x:Name="AlongRole" Text="along"/>
+          <TextBlock Text="Monument description"/><TextBox x:Name="AlongMonument"/>
+          <TextBlock Text="Monument evidence"/><TextBox x:Name="AlongEvidence"/>
+          <Button x:Name="AddAlongButton" Content="Add Along Point" Click="AddAlong_Click" Margin="0,8,0,0"/>
+          <Separator Margin="0,12"/>
+          <TextBlock Text="Selected course edits" FontWeight="Bold" FontSize="18"/>
+          <TextBlock Text="Selected along point"/><ComboBox x:Name="EditAlongPoint" DisplayMemberPath="Label" SelectionChanged="EditAlongPoint_SelectionChanged"/>
+          <TextBlock Text="New fromPrevious"/><TextBox x:Name="EditAlongDistance"/>
+          <WrapPanel Margin="0,8,0,0"><Button Content="Edit Course" Click="EditCourse_Click" Margin="0,0,6,0"/>
+            <Button Content="Edit Part" Click="EditPart_Click"/></WrapPanel>
+        </StackPanel>
+      </ScrollViewer>
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="245"/><RowDefinition Height="120"/></Grid.RowDefinitions>
+        <local:DrawingSurface x:Name="Drawing" Grid.Row="0"/>
+        <DockPanel Grid.Row="1"><StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6">
+          <TextBlock Text="Courses (display order)" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+          <Button Content="Delete selected" Click="Delete_Click"/></StackPanel>
+          <DataGrid x:Name="CourseTable" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="CourseTable_SelectionChanged">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="#" Binding="{Binding Position}" Width="40"/>
+              <DataGridTextColumn Header="Course ID" Binding="{Binding Id}" Width="90"/>
+              <DataGridTextColumn Header="Parent" Binding="{Binding Parent}" Width="90"/>
+              <DataGridTextColumn Header="Start" Binding="{Binding Start}" Width="90"/>
+              <DataGridTextColumn Header="Bearing" Binding="{Binding Bearing}" Width="140"/>
+              <DataGridTextColumn Header="Length" Binding="{Binding Length}" Width="90"/>
+              <DataGridTextColumn Header="Entered parts" Binding="{Binding Parts}" Width="*"/>
+              <DataGridTextColumn Header="Final part" Binding="{Binding Final}" Width="90"/>
+            </DataGrid.Columns>
+          </DataGrid></DockPanel>
+        <DataGrid x:Name="DiagnosticsTable" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True">
+          <DataGrid.Columns><DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="75"/>
+            <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="220"/>
+            <DataGridTextColumn Header="Entity" Binding="{Binding Entity}" Width="120"/>
+            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/></DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</Window>
