@@ -51,4 +51,11 @@ public static class DiagnosticCodes
     public const string AlongPointBeyondCourse = "geometry.along_point_beyond_course";
     public const string PartLengthDiscrepancy = "geometry.part_length_discrepancy";
     public const string ExistingEndMismatch = "geometry.existing_end_mismatch";
+    public const string EditMissingRecord = "edit.missing_record";
+    public const string EditMissingCourse = "edit.missing_course";
+    public const string EditMissingAlongPoint = "edit.missing_along_point";
+    public const string EditInvalidValue = "edit.invalid_value";
+    public const string EditInvalidBearing = "edit.invalid_bearing";
+    public const string EditInvalidProject = "edit.invalid_project";
+    public const string EditEndpointWithoutProducer = "edit.endpoint_without_producer";
 }
