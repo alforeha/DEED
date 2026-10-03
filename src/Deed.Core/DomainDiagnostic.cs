@@ -40,4 +40,15 @@ public static class DiagnosticCodes
     public const string IdSpaceExhausted = "structure.id_space_exhausted";
     public const string DuplicateProjectId = "structure.duplicate_project_id";
     public const string InvalidMonument = "structure.invalid_monument";
+    public const string InvalidParent = "structure.invalid_parent";
+    public const string ParentOutsideBlock = "structure.parent_outside_block";
+    public const string ParentAttachmentMismatch = "structure.parent_attachment_mismatch";
+    public const string InvalidRootCount = "structure.invalid_root_count";
+    public const string ParentCycle = "structure.parent_cycle";
+    public const string MissingAlongPlacement = "structure.missing_along_placement";
+    public const string DuplicateAlongPlacement = "structure.duplicate_along_placement";
+    public const string AlongHostMismatch = "structure.along_host_mismatch";
+    public const string AlongPointBeyondCourse = "geometry.along_point_beyond_course";
+    public const string PartLengthDiscrepancy = "geometry.part_length_discrepancy";
+    public const string ExistingEndMismatch = "geometry.existing_end_mismatch";
 }

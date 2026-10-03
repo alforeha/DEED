@@ -153,10 +153,13 @@ public static class StageAJson
     {
         var nodes = new JsonObject();
         foreach (var (id, node) in record.Nodes.OrderBy(x => x.Key.ToString(), StringComparer.Ordinal))
+        {
+            if (node.Definition is AlongCourseNodeDefinition) continue;
             nodes[id.ToString()] = Node(node, p, $"{path}/nodes/{id}");
+        }
         var courses = new JsonObject();
         foreach (var (id, course) in record.Courses.OrderBy(x => x.Key.ToString(), StringComparer.Ordinal))
-            courses[id.ToString()] = Course(course, p, $"{path}/courses/{id}");
+            courses[id.ToString()] = Course(course, record, p, $"{path}/courses/{id}");
         var blocks = new JsonObject();
         foreach (var (id, block) in record.DraftingBlocks.OrderBy(x => x.Key.ToString(), StringComparer.Ordinal))
             blocks[id.ToString()] = Block(block, p, $"{path}/blocks/{id}");
@@ -200,7 +203,8 @@ public static class StageAJson
         return result;
     }
 
-    private static JsonObject Course(StraightCourse course, PreservationMetadata p, string path)
+    private static JsonObject Course(StraightCourse course, DeedRecord record,
+        PreservationMetadata p, string path)
     {
         var recorded = new JsonObject
         {
@@ -225,6 +229,31 @@ public static class StageAJson
             ["type"] = course.DraftingTypeId.ToString(),
             ["from"] = course.FromNodeId.ToString(),
             ["to"] = course.ToNodeId.ToString(),
+            ["parent"] = course.ParentCourseId?.ToString(),
+            ["along"] = new JsonArray(course.AlongPoints.Select(placement =>
+            {
+                var node = record.Nodes[placement.NodeId];
+                JsonObject? monument = null;
+                if (node.Monument is { } value)
+                {
+                    monument = new JsonObject
+                    {
+                        ["description"] = value.Description,
+                        ["evidence"] = value.Evidence
+                    };
+                    Merge(monument, p, $"{path}/along/{placement.NodeId}/monument");
+                }
+                var item = new JsonObject
+                {
+                    ["id"] = placement.NodeId.ToString(),
+                    ["fromPrevious"] = placement.FromPrevious.Value,
+                    ["role"] = node.Role,
+                    ["monument"] = monument
+                };
+                Merge(item, p, $"{path}/along/{placement.NodeId}");
+                return (JsonNode?)item;
+            }).ToArray()),
+            ["finalPart"] = course.FinalPart?.Value,
             ["recorded"] = recorded, ["drafted"] = drafted, ["driving"] = "recorded"
         };
         Merge(result, p, path);

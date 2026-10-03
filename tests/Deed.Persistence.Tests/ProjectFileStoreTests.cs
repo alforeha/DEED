@@ -200,17 +200,49 @@ public sealed class ProjectFileStoreTests
             Assert.False(parsed.RootElement.TryGetProperty("diagnostics", out _));
             Assert.Equal(new[] { "rec-00001" }, parsed.RootElement.GetProperty("records")
                 .EnumerateObject().Select(p => p.Name));
-            Assert.Equal(new[] { "n-00001", "n-00002", "n-00003", "n-00004" },
+            Assert.Equal(Enumerable.Range(1, 8).Select(n => $"n-{n:00000}"),
                 parsed.RootElement.GetProperty("records").GetProperty("rec-00001")
                     .GetProperty("nodes").EnumerateObject().Select(p => p.Name));
+            var cachedNodes = parsed.RootElement.GetProperty("records").GetProperty("rec-00001")
+                .GetProperty("nodes");
+            double diagonal = 1 / Math.Sqrt(2);
+            foreach (var (id, distance) in new[]
+            {
+                ("n-00005", 86.25), ("n-00006", 136.25), ("n-00007", 186.25)
+            })
+            {
+                Assert.Equal(1000 + distance * diagonal, cachedNodes.GetProperty(id)[0].GetDouble(), 9);
+                Assert.Equal(2000 + distance * diagonal, cachedNodes.GetProperty(id)[1].GetDouble(), 9);
+            }
+            Assert.Equal(1040 + 136.25 * diagonal,
+                cachedNodes.GetProperty("n-00008")[0].GetDouble(), 9);
+            Assert.Equal(2000 + 136.25 * diagonal,
+                cachedNodes.GetProperty("n-00008")[1].GetDouble(), 9);
         }
         var matching = store.Load(dir.ProjectPath);
         Assert.True(matching.IsSuccess);
         Assert.Equal(1000, matching.FreshCoordinates[RecordId1][NodeId1].Easting);
+        var baseline = matching.FreshCoordinates[RecordId1];
+        foreach (int number in new[] { 5, 6, 7, 8 })
+            Assert.True(baseline.ContainsKey(NodeId.TryParse($"n-{number:00000}").Value));
+        File.WriteAllText(cache, "{broken");
+        var corruptCache = store.Load(dir.ProjectPath);
+        Assert.True(corruptCache.IsSuccess);
+        Assert.Contains(corruptCache.Diagnostics, d => d.Code == CacheDiagnosticCodes.Invalid);
+        foreach (int number in new[] { 5, 6, 7, 8 })
+        {
+            var id = NodeId.TryParse($"n-{number:00000}").Value;
+            Assert.Equal(baseline[id], corruptCache.FreshCoordinates[RecordId1][id]);
+        }
         File.Delete(cache);
         var missingCache = store.Load(dir.ProjectPath);
         Assert.True(missingCache.IsSuccess);
         Assert.DoesNotContain(missingCache.Diagnostics, d => d.Code.StartsWith("cache.", StringComparison.Ordinal));
+        foreach (int number in new[] { 5, 6, 7, 8 })
+        {
+            var id = NodeId.TryParse($"n-{number:00000}").Value;
+            Assert.Equal(baseline[id], missingCache.FreshCoordinates[RecordId1][id]);
+        }
         Assert.Empty(dir.Temps());
     }
 

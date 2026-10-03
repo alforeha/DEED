@@ -15,7 +15,7 @@
     "ext": { "vendor": { "flags": ["a", "b"] } },
     "futureSettings": [null, 9]
   },
-  "idCounters": { "rec": 1, "blk": 1, "c": 3, "n": 4, "dt": 1 },
+  "idCounters": { "rec": 1, "blk": 1, "c": 4, "n": 8, "dt": 1 },
   "draftingTypes": {
     "dt-00001": {
       "name": "Boundary",
@@ -53,6 +53,11 @@
           "definition": { "kind": "courseEnd", "course": "c-00003" },
           "role": "boundaryCorner",
           "monument": null
+        },
+        "n-00008": {
+          "definition": { "kind": "courseEnd", "course": "c-00004" },
+          "role": "branchCorner",
+          "monument": null
         }
       },
       "courses": {
@@ -60,11 +65,38 @@
           "type": "dt-00001",
           "from": "n-00001",
           "to": "n-00002",
+          "parent": null,
+          "along": [
+            {
+              "id": "n-00005", "fromPrevious": 86.25, "role": "rowBegin",
+              "monument": {
+                "description": "Iron pipe at right of way",
+                "evidence": "found",
+                "ext": { "survey": { "page": 17 } },
+                "futureMonument": { "condition": "good" }
+              },
+              "ext": { "station": "A" },
+              "futureAlong": { "source": ["plat", 4] }
+            },
+            {
+              "id": "n-00006", "fromPrevious": 50.0, "role": "branchPoint",
+              "monument": {
+                "description": "Chiseled cross",
+                "evidence": "recovered",
+                "ext": { "survey": { "page": 18 } },
+                "futureMonument": { "condition": "weathered" }
+              },
+              "ext": { "station": "B" },
+              "futureAlong": { "source": ["field", 9] }
+            },
+            { "id": "n-00007", "fromPrevious": 50.0, "role": "lotCorner", "monument": null }
+          ],
+          "finalPart": 63.74,
           "recorded": {
             "kind": "line",
-            "text": "  Thence North 45 degrees East, 100.00 feet  ",
+            "text": "  Thence North 45 degrees East, 250.00 feet  ",
             "bearing": "  n 45° 00' 00\" e  ",
-            "length": 100.0
+            "length": 250.0
           },
           "drafted": null,
           "driving": "recorded",
@@ -75,6 +107,9 @@
           "type": "dt-00001",
           "from": "n-00002",
           "to": "n-00003",
+          "parent": "c-00001",
+          "along": [],
+          "finalPart": null,
           "recorded": {
             "kind": "line",
             "text": "Thence S45E 100 feet",
@@ -88,6 +123,9 @@
           "type": "dt-00001",
           "from": "n-00003",
           "to": "n-00004",
+          "parent": "c-00002",
+          "along": [],
+          "finalPart": null,
           "recorded": {
             "kind": "line",
             "text": "Thence S45W; distance omitted in source",
@@ -97,6 +135,22 @@
           "drafted": {
             "length": { "value": 100.0, "reason": "Scaled from survey sketch" }
           },
+          "driving": "recorded"
+        },
+        "c-00004": {
+          "type": "dt-00001",
+          "from": "n-00006",
+          "to": "n-00008",
+          "parent": "c-00001",
+          "along": [],
+          "finalPart": null,
+          "recorded": {
+            "kind": "line",
+            "text": "Branch east 40 feet",
+            "bearing": "E",
+            "length": 40.0
+          },
+          "drafted": null,
           "driving": "recorded"
         }
       },
@@ -108,7 +162,7 @@
           "viewOrder": 0,
           "origin": "n-00001",
           "reportClose": false,
-          "courses": ["c-00003", "c-00001", "c-00002"],
+          "courses": ["c-00004", "c-00003", "c-00001", "c-00002"],
           "ext": { "labels": ["main", { "side": "north" }] },
           "futureBlock": { "visible": true }
         }

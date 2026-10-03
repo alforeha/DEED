@@ -105,6 +105,8 @@ public static class ProjectValidator
 
         var usedNodes = new HashSet<NodeId>();
         var membership = new Dictionary<CourseId, int>();
+        var blocksByCourse = new Dictionary<CourseId, HashSet<BlockId>>();
+        var placementCount = new Dictionary<NodeId, int>();
         foreach (var (id, course) in record.Courses)
         {
             CheckId(id.ToString(), "c-", "course", id.ToString());
@@ -112,6 +114,8 @@ public static class ProjectValidator
             CheckId(course.DraftingTypeId.ToString(), "dt-", "course", id.ToString());
             CheckId(course.FromNodeId.ToString(), "n-", "course", id.ToString());
             CheckId(course.ToNodeId.ToString(), "n-", "course", id.ToString());
+            if (course.ParentCourseId is { } parentId)
+                CheckId(parentId.ToString(), "c-", "course", id.ToString());
             if (id != course.Id)
                 Add(DiagnosticCodes.IdMismatch, "Course key differs from its ID.", "course", id.ToString());
             if (!project.DraftingTypes.ContainsKey(course.DraftingTypeId))
@@ -123,12 +127,32 @@ public static class ProjectValidator
                 else usedNodes.Add(nodeId);
             }
             if (record.Nodes.TryGetValue(course.ToNodeId, out var end) &&
-                end.Definition is CourseEndNodeDefinition courseEnd && courseEnd.ProducingCourseId != id)
-                Add(DiagnosticCodes.CourseEndMismatch, "Course end names a different producing course.", "course", id.ToString());
+                end.Definition is not FixedNodeDefinition &&
+                (end.Definition is not CourseEndNodeDefinition courseEnd ||
+                 !record.Courses.TryGetValue(courseEnd.ProducingCourseId, out var producer) ||
+                 producer.ToNodeId != course.ToNodeId))
+                Add(DiagnosticCodes.CourseEndMismatch,
+                    "Course end must be fixed or owned by its producing course.", "course", id.ToString());
             if (course.DraftedCompletion is { } completion &&
                 (course.RecordedDistance is not null || string.IsNullOrWhiteSpace(completion.Reason)))
                 Add(DiagnosticCodes.InvalidDraftedCompletion,
                     "Drafted completion requires a missing recorded distance and a reason.", "course", id.ToString());
+            foreach (var placement in course.AlongPoints)
+            {
+                CheckId(placement.NodeId.ToString(), "n-", "course", id.ToString());
+                int count = placementCount.GetValueOrDefault(placement.NodeId) + 1;
+                placementCount[placement.NodeId] = count;
+                if (count > 1)
+                    Add(DiagnosticCodes.DuplicateAlongPlacement,
+                        "Along node appears in more than one placement.", "node", placement.NodeId.ToString());
+                if (!record.Nodes.TryGetValue(placement.NodeId, out var alongNode))
+                    Add(DiagnosticCodes.MissingAlongPlacement,
+                        "Placed along node is missing.", "course", id.ToString());
+                else if (alongNode.Definition is not AlongCourseNodeDefinition along || along.HostCourseId != id)
+                    Add(DiagnosticCodes.AlongHostMismatch,
+                        "Along node definition does not name its host course.", "node", placement.NodeId.ToString());
+                else usedNodes.Add(placement.NodeId);
+            }
         }
 
         foreach (var (id, node) in record.Nodes)
@@ -153,6 +177,14 @@ public static class ProjectValidator
                             "Producing course does not end at this node.", "node", id.ToString());
                     else usedNodes.Add(id);
                 }
+            }
+            if (node.Definition is AlongCourseNodeDefinition along)
+            {
+                CheckId(along.HostCourseId.ToString(), "c-", "node", id.ToString());
+                if (!record.Courses.ContainsKey(along.HostCourseId) ||
+                    placementCount.GetValueOrDefault(id) == 0)
+                    Add(DiagnosticCodes.MissingAlongPlacement,
+                        "Along node has no placement on its host course.", "node", id.ToString());
             }
             if (!usedNodes.Contains(id) && !record.Courses.Values.Any(c =>
                     c.FromNodeId == id || c.ToNodeId == id))
@@ -187,13 +219,26 @@ public static class ProjectValidator
                 if (!seen.Add(courseId))
                     Add(DiagnosticCodes.DuplicateCourseMembership, "Course appears twice in this block.", "block", id.ToString());
                 membership[courseId] = membership.GetValueOrDefault(courseId) + 1;
+                if (!blocksByCourse.TryGetValue(courseId, out var owners))
+                    blocksByCourse[courseId] = owners = new HashSet<BlockId>();
+                owners.Add(id);
             }
-            if (project.DraftingTypes.TryGetValue(block.DraftingTypeId, out var type) &&
-                type.Category == DraftingCategory.Boundary && block.Courses.Count > 0 &&
-                block.Origin is { } origin && record.Nodes.ContainsKey(origin) &&
-                !IsConnectedChain(record, block, origin))
-                Add(DiagnosticCodes.DisconnectedBlock,
-                    "Boundary courses do not form one chain from the origin.", "block", id.ToString());
+            if (block.Courses.Count > 0)
+            {
+                var roots = block.Courses.Where(courseId => record.Courses.TryGetValue(courseId, out var c) &&
+                    c.ParentCourseId is null).Distinct().ToArray();
+                if (roots.Length != 1)
+                    Add(DiagnosticCodes.InvalidRootCount,
+                        "Nonempty block must have exactly one root course.", "block", id.ToString());
+                else if (record.Courses[roots[0]].FromNodeId != block.Origin)
+                    Add(DiagnosticCodes.InvalidBlockOrigin,
+                        "Root course must start at block origin.", "block", id.ToString());
+                else if (block.Origin is { } rootOrigin &&
+                    record.Nodes.TryGetValue(rootOrigin, out var originNode) &&
+                    originNode.Definition is not FixedNodeDefinition)
+                    Add(DiagnosticCodes.InvalidBlockOrigin,
+                        "Stage A root origin must be a fixed node.", "block", id.ToString());
+            }
         }
 
         foreach (var id in record.Courses.Keys)
@@ -205,24 +250,50 @@ public static class ProjectValidator
                 Add(DiagnosticCodes.DuplicateCourseMembership,
                     "Course belongs to more than one block position.", "course", id.ToString());
         }
+        foreach (var (id, course) in record.Courses)
+        {
+            if (course.ParentCourseId is not { } parentId) continue;
+            if (!record.Courses.TryGetValue(parentId, out var parent))
+            {
+                Add(DiagnosticCodes.InvalidParent, "Parent course is missing.", "course", id.ToString());
+                continue;
+            }
+            if (!blocksByCourse.TryGetValue(id, out var childBlocks) ||
+                !blocksByCourse.TryGetValue(parentId, out var parentBlocks) ||
+                !childBlocks.Overlaps(parentBlocks))
+                Add(DiagnosticCodes.ParentOutsideBlock,
+                    "Parent course is outside the child's block.", "course", id.ToString());
+            if (course.FromNodeId != parent.FromNodeId && course.FromNodeId != parent.ToNodeId &&
+                !parent.AlongPoints.Any(p => p.NodeId == course.FromNodeId))
+                Add(DiagnosticCodes.ParentAttachmentMismatch,
+                    "Child start is not a point on its parent course.", "course", id.ToString());
+        }
+        foreach (var id in FindParentCycles(record))
+            Add(DiagnosticCodes.ParentCycle, "Course is in a parent cycle.", "course", id.ToString());
         return Array.AsReadOnly(diagnostics.ToArray());
     }
 
-    private static bool IsConnectedChain(DeedRecord record, DraftingBlock block, NodeId origin)
+    internal static HashSet<CourseId> FindParentCycles(DeedRecord record)
     {
-        var ids = block.Courses.Where(record.Courses.ContainsKey).Distinct().ToArray();
-        if (ids.Length != block.Courses.Count) return false;
-        var byFrom = new Dictionary<NodeId, CourseId>();
-        var toNodes = new HashSet<NodeId>();
-        foreach (var id in ids)
+        var cyclic = new HashSet<CourseId>();
+        var state = new Dictionary<CourseId, int>();
+        var path = new List<CourseId>();
+        void Visit(CourseId id)
         {
-            var course = record.Courses[id];
-            if (!byFrom.TryAdd(course.FromNodeId, id) || !toNodes.Add(course.ToNodeId)) return false;
+            if (state.GetValueOrDefault(id) == 2) return;
+            if (state.GetValueOrDefault(id) == 1)
+            {
+                for (int i = path.IndexOf(id); i < path.Count; i++) cyclic.Add(path[i]);
+                return;
+            }
+            state[id] = 1;
+            path.Add(id);
+            if (record.Courses[id].ParentCourseId is { } parent && record.Courses.ContainsKey(parent))
+                Visit(parent);
+            path.RemoveAt(path.Count - 1);
+            state[id] = 2;
         }
-        var visited = new HashSet<CourseId>();
-        var current = origin;
-        while (byFrom.TryGetValue(current, out var id) && visited.Add(id))
-            current = record.Courses[id].ToNodeId;
-        return visited.Count == ids.Length && !byFrom.ContainsKey(current);
+        foreach (var id in record.Courses.Keys) Visit(id);
+        return cyclic;
     }
 }

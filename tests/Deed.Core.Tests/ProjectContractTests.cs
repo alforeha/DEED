@@ -172,7 +172,8 @@ public class ProjectContractTests
         }
         if (repeated == "course")
         {
-            courses[C(1)] = new(C(1), T(1), N(1), N(2), "N 1", BearingParser.Parse("N").Value,
+            courses[C(1)] = new(C(1), T(1), N(1), N(2), null,
+                Array.Empty<AlongPointPlacement>(), null, "N 1", BearingParser.Parse("N").Value,
                 Distance.TryCreate(1).Value, null);
             blocks[B(id == R(1) ? 1 : 2)] = new(B(id == R(1) ? 1 : 2), "Boundary", T(1),
                 null, 0, N(1), new[] { C(1) }, false);

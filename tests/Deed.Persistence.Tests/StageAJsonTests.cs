@@ -23,19 +23,31 @@ public class StageAJsonTests
     }
 
     [Fact]
-    public void HandwrittenFixtureLoadsAndSolvesThreeCourseChain()
+    public void HandwrittenFixtureSolvesAlongPartsContinuationAndBranch()
     {
         var document = Loaded();
         var solved = RecordSolver.Solve(document.Project, R(1));
-        Assert.Equal(3, solved.SolvedLines.Count);
-        double diagonal = 100 / Math.Sqrt(2);
-        Assert.Equal(1000 + diagonal, solved.NodeCoordinates[N(2)].Easting, 9);
-        Assert.Equal(2000 + diagonal, solved.NodeCoordinates[N(2)].Northing, 9);
-        Assert.Equal(1000 + 2 * diagonal, solved.NodeCoordinates[N(3)].Easting, 9);
-        Assert.Equal(2000, solved.NodeCoordinates[N(3)].Northing, 9);
-        Assert.Equal(1000 + diagonal, solved.NodeCoordinates[N(4)].Easting, 9);
-        Assert.Equal(2000 - diagonal, solved.NodeCoordinates[N(4)].Northing, 9);
+        Assert.Equal(4, solved.SolvedLines.Count);
+        double inverseRootTwo = 1 / Math.Sqrt(2);
+        Assert.Equal(1000 + 86.25 * inverseRootTwo, solved.NodeCoordinates[N(5)].Easting, 9);
+        Assert.Equal(2000 + 86.25 * inverseRootTwo, solved.NodeCoordinates[N(5)].Northing, 9);
+        Assert.Equal(1000 + 136.25 * inverseRootTwo, solved.NodeCoordinates[N(6)].Easting, 9);
+        Assert.Equal(2000 + 136.25 * inverseRootTwo, solved.NodeCoordinates[N(6)].Northing, 9);
+        Assert.Equal(1000 + 186.25 * inverseRootTwo, solved.NodeCoordinates[N(7)].Easting, 9);
+        Assert.Equal(2000 + 186.25 * inverseRootTwo, solved.NodeCoordinates[N(7)].Northing, 9);
+        Assert.Equal(1000 + 250 * inverseRootTwo, solved.NodeCoordinates[N(2)].Easting, 9);
+        Assert.Equal(2000 + 250 * inverseRootTwo, solved.NodeCoordinates[N(2)].Northing, 9);
+        Assert.Equal(1000 + 350 * inverseRootTwo, solved.NodeCoordinates[N(3)].Easting, 9);
+        Assert.Equal(2000 + 150 * inverseRootTwo, solved.NodeCoordinates[N(3)].Northing, 9);
+        Assert.Equal(1000 + 250 * inverseRootTwo, solved.NodeCoordinates[N(4)].Easting, 9);
+        Assert.Equal(2000 + 50 * inverseRootTwo, solved.NodeCoordinates[N(4)].Northing, 9);
+        Assert.Equal(1040 + 136.25 * inverseRootTwo, solved.NodeCoordinates[N(8)].Easting, 9);
+        Assert.Equal(2000 + 136.25 * inverseRootTwo, solved.NodeCoordinates[N(8)].Northing, 9);
         Assert.True(solved.SolvedLines[C(3)].UsedDraftedDistance);
+        Assert.Equal(249.99, solved.PartSummaries[C(1)].EnteredTotal);
+        Assert.Equal(0.01, solved.PartSummaries[C(1)].SignedDiscrepancy);
+        Assert.Contains(solved.Diagnostics, d => d.Code == DiagnosticCodes.PartLengthDiscrepancy &&
+            d.Severity == DiagnosticSeverity.Warning);
     }
 
     [Fact]
@@ -49,7 +61,7 @@ public class StageAJsonTests
         Assert.Empty(reloaded.Diagnostics);
         var before = original.Project.Records[R(1)].Courses[C(1)];
         var after = reloaded.Document.Project.Records[R(1)].Courses[C(1)];
-        Assert.Equal("  Thence North 45 degrees East, 100.00 feet  ", before.OriginalRecordedText);
+        Assert.Equal("  Thence North 45 degrees East, 250.00 feet  ", before.OriginalRecordedText);
         Assert.Equal(before.OriginalRecordedText, after.OriginalRecordedText);
         Assert.Equal("  n 45° 00' 00\" e  ", after.ParsedBearing?.OriginalText);
         Assert.Equal(before.ParsedBearing?.Bearing.Azimuth.Degrees,
@@ -196,12 +208,12 @@ public class StageAJsonTests
     public void OrphanLoadsButPreventsAuthoritativeSerialization()
     {
         var edited = JsonNode.Parse(Fixture)!.AsObject();
-        edited["idCounters"]!["n"] = 5;
-        edited["records"]!["rec-00001"]!["nodes"]!["n-00005"] = JsonNode.Parse(
+        edited["idCounters"]!["n"] = 9;
+        edited["records"]!["rec-00001"]!["nodes"]!["n-00009"] = JsonNode.Parse(
             "{\"definition\":{\"kind\":\"fixed\",\"at\":[3,4]},\"role\":\"unused\",\"monument\":null}");
         var result = StageAJson.Load(edited.ToJsonString());
         Assert.NotNull(result.Document);
-        Assert.True(result.Document.Project.Records[R(1)].Nodes.ContainsKey(N(5)));
+        Assert.True(result.Document.Project.Records[R(1)].Nodes.ContainsKey(N(9)));
         Assert.Contains(result.Diagnostics, x => x.Code == DiagnosticCodes.OrphanNode);
         var save = StageAJson.Save(result.Document);
         Assert.False(save.IsSuccess);
@@ -342,6 +354,195 @@ public class StageAJsonTests
         Assert.Equal("recovered", monument.GetProperty("evidence").GetString());
         Assert.True(monument.TryGetProperty("futureMonument", out _));
         Assert.True(monument.TryGetProperty("ext", out _));
+    }
+
+    [Fact]
+    public void AlongPointsAndPartEvidenceRoundTripWithUnknownFields()
+    {
+        var document = Loaded();
+        var save = StageAJson.Save(document);
+        Assert.True(save.IsSuccess);
+        var reloaded = StageAJson.Load(save.Json!);
+        Assert.Empty(reloaded.Diagnostics);
+        var runtime = reloaded.Document!.Project.Records[R(1)];
+        Assert.IsType<AlongCourseNodeDefinition>(runtime.Nodes[N(5)].Definition);
+        Assert.Equal(N(5), runtime.Courses[C(1)].AlongPoints[0].NodeId);
+        Assert.Equal(86.25, runtime.Courses[C(1)].AlongPoints[0].FromPrevious.Value);
+        Assert.Equal(63.74, runtime.Courses[C(1)].FinalPart?.Value);
+        using var json = JsonDocument.Parse(save.Json!);
+        var saved = json.RootElement.GetProperty("records").GetProperty("rec-00001");
+        Assert.False(saved.GetProperty("nodes").TryGetProperty("n-00005", out _));
+        Assert.Equal("good", saved.GetProperty("courses").GetProperty("c-00001")
+            .GetProperty("along")[0].GetProperty("monument")
+            .GetProperty("futureMonument").GetProperty("condition").GetString());
+        Assert.Equal("A", saved.GetProperty("courses").GetProperty("c-00001")
+            .GetProperty("along")[0].GetProperty("ext").GetProperty("station").GetString());
+    }
+
+    [Fact]
+    public void AlongMetadataFollowsNodeIdsAfterRuntimeReorder()
+    {
+        var source = Loaded();
+        var record = source.Project.Records[R(1)];
+        var root = record.Courses[C(1)];
+        var reordered = new StraightCourse(root.Id, root.DraftingTypeId,
+            root.FromNodeId, root.ToNodeId, root.ParentCourseId,
+            root.AlongPoints.Reverse(), root.FinalPart, root.OriginalRecordedText,
+            root.ParsedBearing, root.RecordedDistance, root.DraftedCompletion);
+        var courses = record.Courses.ToDictionary(x => x.Key, x => x.Value);
+        courses[C(1)] = reordered;
+        var nodes = record.Nodes.ToDictionary(x => x.Key, x => x.Value);
+        nodes[N(5)] = nodes[N(5)] with { Role = "updatedRole" };
+        var changedRecord = new DeedRecord(record.Id, nodes, courses,
+            record.DraftingBlocks.ToDictionary(x => x.Key, x => x.Value));
+        var records = source.Project.Records.ToDictionary(x => x.Key, x => x.Value);
+        records[R(1)] = changedRecord;
+        var project = new DeedProject(source.Project.Settings,
+            source.Project.DraftingTypes.ToDictionary(x => x.Key, x => x.Value),
+            records, source.Project.IdCounters);
+        var saved = StageAJson.Save(source with { Project = project });
+        Assert.True(saved.IsSuccess);
+        using var json = JsonDocument.Parse(saved.Json!);
+        var along = json.RootElement.GetProperty("records").GetProperty("rec-00001")
+            .GetProperty("courses").GetProperty("c-00001").GetProperty("along");
+        Assert.Equal(new[] { "n-00007", "n-00006", "n-00005" },
+            along.EnumerateArray().Select(x => x.GetProperty("id").GetString()));
+        Assert.Equal("B", along[1].GetProperty("ext").GetProperty("station").GetString());
+        Assert.Equal("field", along[1].GetProperty("futureAlong").GetProperty("source")[0].GetString());
+        Assert.Equal(18, along[1].GetProperty("monument").GetProperty("ext")
+            .GetProperty("survey").GetProperty("page").GetInt32());
+        Assert.Equal("weathered", along[1].GetProperty("monument")
+            .GetProperty("futureMonument").GetProperty("condition").GetString());
+        Assert.Equal("A", along[2].GetProperty("ext").GetProperty("station").GetString());
+        Assert.Equal("plat", along[2].GetProperty("futureAlong").GetProperty("source")[0].GetString());
+        Assert.Equal(17, along[2].GetProperty("monument").GetProperty("ext")
+            .GetProperty("survey").GetProperty("page").GetInt32());
+        Assert.Equal("good", along[2].GetProperty("monument")
+            .GetProperty("futureMonument").GetProperty("condition").GetString());
+        Assert.Equal("updatedRole", along[2].GetProperty("role").GetString());
+    }
+
+    [Fact]
+    public void MissingRequiredCourseHierarchyFieldsPreventSave()
+    {
+        foreach (string field in new[] { "parent", "along", "finalPart" })
+        {
+            var edited = JsonNode.Parse(Fixture)!.AsObject();
+            edited["records"]!["rec-00001"]!["courses"]!["c-00001"]!.AsObject().Remove(field);
+            var loaded = StageAJson.Load(edited.ToJsonString());
+            Assert.Contains(loaded.Diagnostics, d => d.Code == PersistenceDiagnosticCodes.InvalidValue);
+            Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+        }
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("\"bad\"")]
+    public void InvalidAlongDistancesPreventSave(string raw)
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["courses"]!["c-00001"]!["along"]![0]!
+            ["fromPrevious"] = JsonNode.Parse(raw);
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.Contains(loaded.Diagnostics, d => d.Code == PersistenceDiagnosticCodes.InvalidValue);
+        Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+    }
+
+    [Fact]
+    public void InvalidParentBlocksAuthoritativeSave()
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["courses"]!["c-00002"]!["parent"] = "c-00009";
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.Contains(loaded.Diagnostics, d => d.Code == DiagnosticCodes.InvalidParent);
+        Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+    }
+
+    [Theory]
+    [InlineData("id")]
+    [InlineData("fromPrevious")]
+    [InlineData("role")]
+    public void MissingRequiredAlongFieldPreventsSave(string field)
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["courses"]!["c-00001"]!["along"]![0]!
+            .AsObject().Remove(field);
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.NotNull(loaded.Document);
+        Assert.Contains(loaded.Diagnostics, d => d.Code == PersistenceDiagnosticCodes.InvalidValue);
+        Assert.False(StageAJson.Save(loaded.Document).IsSuccess);
+        Assert.False(StageAJson.Save(loaded.Document.Project, loaded.Document.Envelope).IsSuccess);
+    }
+
+    [Fact]
+    public void InvalidAlongMonumentPreventsSave()
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["courses"]!["c-00001"]!["along"]![0]!
+            ["monument"] = JsonNode.Parse("{\"description\":\"  \"}");
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.Contains(loaded.Diagnostics, d => d.Code == PersistenceDiagnosticCodes.InvalidValue);
+        Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+        Assert.False(loaded.Document!.Project.Records[R(1)].Courses.ContainsKey(C(1)));
+        Assert.False(StageAJson.Save(loaded.Document.Project, loaded.Document.Envelope).IsSuccess);
+    }
+
+    [Fact]
+    public void DuplicateAlongNodeIdPreventsSave()
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["courses"]!["c-00001"]!["along"]![2]!
+            ["id"] = "n-00005";
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.Contains(loaded.Diagnostics, d => d.Code == DiagnosticCodes.DuplicateProjectId ||
+            d.Code == DiagnosticCodes.DuplicateAlongPlacement);
+        Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+    }
+
+    [Fact]
+    public void AlongNodeDuplicatedInFlatNodePoolPreventsSave()
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["nodes"]!["n-00005"] = JsonNode.Parse(
+            "{\"definition\":{\"kind\":\"fixed\",\"at\":[1,2]},\"role\":\"duplicate\",\"monument\":null}");
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.Contains(loaded.Diagnostics, d => d.Code == DiagnosticCodes.DuplicateProjectId);
+        Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+    }
+
+    [Fact]
+    public void RuntimeAlongHostMismatchPreventsSave()
+    {
+        var source = Loaded();
+        var record = source.Project.Records[R(1)];
+        var nodes = record.Nodes.ToDictionary(x => x.Key, x => x.Value);
+        nodes[N(5)] = nodes[N(5)] with { Definition = new AlongCourseNodeDefinition(C(2)) };
+        var changedRecord = new DeedRecord(record.Id, nodes,
+            record.Courses.ToDictionary(x => x.Key, x => x.Value),
+            record.DraftingBlocks.ToDictionary(x => x.Key, x => x.Value));
+        var records = source.Project.Records.ToDictionary(x => x.Key, x => x.Value);
+        records[R(1)] = changedRecord;
+        var project = new DeedProject(source.Project.Settings,
+            source.Project.DraftingTypes.ToDictionary(x => x.Key, x => x.Value),
+            records, source.Project.IdCounters);
+        var save = StageAJson.Save(source with { Project = project });
+        Assert.Contains(save.Diagnostics, d => d.Code == DiagnosticCodes.AlongHostMismatch);
+        Assert.False(save.IsSuccess);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("\"invalid\"")]
+    public void MalformedFinalPartPreventsSave(string raw)
+    {
+        var edited = JsonNode.Parse(Fixture)!.AsObject();
+        edited["records"]!["rec-00001"]!["courses"]!["c-00001"]!["finalPart"] =
+            JsonNode.Parse(raw);
+        var loaded = StageAJson.Load(edited.ToJsonString());
+        Assert.Contains(loaded.Diagnostics, d => d.Code == PersistenceDiagnosticCodes.InvalidValue);
+        Assert.False(StageAJson.Save(loaded.Document!).IsSuccess);
+        Assert.False(loaded.Document!.Project.Records[R(1)].Courses.ContainsKey(C(1)));
+        Assert.False(StageAJson.Save(loaded.Document.Project, loaded.Document.Envelope).IsSuccess);
     }
 
     [Fact]

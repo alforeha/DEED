@@ -160,8 +160,9 @@ internal sealed class Loader
             var coursesValue = Object(property.Value, "courses", path, true);
             var blocksValue = Object(property.Value, "blocks", path, true);
             if (nodesValue is null || coursesValue is null || blocksValue is null) continue;
-            var record = new DeedRecord(id.Value, Nodes(nodesValue.Value, path),
-                Courses(coursesValue.Value, path), Blocks(blocksValue.Value, path));
+            var nodes = Nodes(nodesValue.Value, path);
+            var courses = Courses(coursesValue.Value, path, nodes);
+            var record = new DeedRecord(id.Value, nodes, courses, Blocks(blocksValue.Value, path));
             if (!records.TryAdd(id.Value, record))
                 Add(DiagnosticCodes.DuplicateProjectId, "Duplicate record ID.", "record", property.Name);
         }
@@ -247,7 +248,8 @@ internal sealed class Loader
         return true;
     }
 
-    private Dictionary<CourseId, StraightCourse> Courses(JsonElement value, string recordPath)
+    private Dictionary<CourseId, StraightCourse> Courses(JsonElement value, string recordPath,
+        Dictionary<NodeId, DeedNode> nodes)
     {
         var courses = new Dictionary<CourseId, StraightCourse>();
         foreach (var property in value.EnumerateObject())
@@ -260,10 +262,64 @@ internal sealed class Loader
                 Invalid(path, "Course must be an object.");
                 continue;
             }
-            Capture(property.Value, path, "type", "from", "to", "recorded", "drafted", "driving");
+            Capture(property.Value, path, "type", "from", "to", "parent", "along", "finalPart",
+                "recorded", "drafted", "driving");
             var type = Id(property.Value, "type", DraftingTypeId.TryParse, path);
             var from = Id(property.Value, "from", NodeId.TryParse, path);
             var to = Id(property.Value, "to", NodeId.TryParse, path);
+            bool validParent = property.Value.TryGetProperty("parent", out var parentValue);
+            if (!validParent)
+                Invalid($"{path}/parent", "Required nullable parent is missing.");
+            var parent = Id(property.Value, "parent", CourseId.TryParse, path, false);
+            if (validParent && parentValue.ValueKind != JsonValueKind.Null && parent is null)
+                validParent = false;
+            var alongPoints = new List<AlongPointPlacement>();
+            var alongNodes = new List<DeedNode>();
+            bool validAlong = true;
+            if (!property.Value.TryGetProperty("along", out var alongValue) ||
+                alongValue.ValueKind != JsonValueKind.Array)
+            {
+                Invalid($"{path}/along", "Along points must be an array.");
+                validAlong = false;
+            }
+            else
+            {
+                int index = 0;
+                foreach (var item in alongValue.EnumerateArray())
+                {
+                    string itemPath = $"{path}/along/{index++}";
+                    if (item.ValueKind != JsonValueKind.Object)
+                    {
+                        Invalid(itemPath, "Along placement must be an object.");
+                        validAlong = false;
+                        continue;
+                    }
+                    var node = Id(item, "id", NodeId.TryParse, itemPath);
+                    string metadataPath = node is { } nodeId
+                        ? $"{path}/along/{nodeId}" : itemPath;
+                    Capture(item, metadataPath, "id", "fromPrevious", "role", "monument");
+                    var distance = Distance(item, "fromPrevious", itemPath, false);
+                    string? role = String(item, "role", itemPath, true);
+                    bool validMonument = TryReadMonument(item, metadataPath, out Monument? monument);
+                    if (node is null || distance is null || role is null || !validMonument)
+                        validAlong = false;
+                    else
+                    {
+                        alongPoints.Add(new AlongPointPlacement(node.Value, distance.Value));
+                        alongNodes.Add(new DeedNode(node.Value, role, monument,
+                            new AlongCourseNodeDefinition(id.Value)));
+                    }
+                }
+            }
+            bool validFinalPart = property.Value.TryGetProperty("finalPart", out var finalValue);
+            if (!validFinalPart)
+                Invalid($"{path}/finalPart", "Required nullable final part is missing.");
+            Distance? finalPart = null;
+            if (validFinalPart && finalValue.ValueKind != JsonValueKind.Null)
+            {
+                finalPart = Distance(property.Value, "finalPart", path, false);
+                if (finalPart is null) validFinalPart = false;
+            }
             string? driving = String(property.Value, "driving", path, true);
             if (driving != "recorded") Invalid(path, "Driving realization must be recorded.");
             var recorded = Object(property.Value, "recorded", path, true);
@@ -304,12 +360,17 @@ internal sealed class Loader
                     }
                 }
             }
-            if (type is null || from is null || to is null || driving != "recorded" ||
+            if (type is null || from is null || to is null || !validParent || !validAlong ||
+                !validFinalPart || driving != "recorded" ||
                 kind != "line" || text is null || bearing is null) continue;
             var course = new StraightCourse(id.Value, type.Value, from.Value, to.Value,
-                text, bearing, length, drafted);
+                parent, alongPoints, finalPart, text, bearing, length, drafted);
             if (!courses.TryAdd(id.Value, course))
                 Add(DiagnosticCodes.DuplicateProjectId, "Duplicate course ID.", "course", property.Name);
+            else foreach (var alongNode in alongNodes)
+                if (!nodes.TryAdd(alongNode.Id, alongNode))
+                    Add(DiagnosticCodes.DuplicateProjectId,
+                        "Along node ID occurs more than once.", "node", alongNode.Id.ToString());
         }
         return courses;
     }

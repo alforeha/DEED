@@ -15,8 +15,10 @@ public class StageATests
         new(N(n), "point", null, new CourseEndNodeDefinition(C(course)));
     private static StraightCourse Line(int n, int from, int to, string bearing = "N",
         Distance? recorded = null, DraftedDistanceCompletion? drafted = null,
-        DraftingTypeId? type = null) =>
-        new(C(n), type ?? T(1), N(from), N(to), $"  original {n}  ",
+        DraftingTypeId? type = null, CourseId? parent = null,
+        IEnumerable<AlongPointPlacement>? along = null, Distance? finalPart = null) =>
+        new(C(n), type ?? T(1), N(from), N(to), parent ?? (n > 1 ? C(n - 1) : null),
+            along ?? Array.Empty<AlongPointPlacement>(), finalPart, $"  original {n}  ",
             Bearing(bearing), recorded, drafted);
     private static DraftingBlock Block(IEnumerable<CourseId> ids, NodeId? origin = null,
         DraftingTypeId? type = null) =>
@@ -192,11 +194,12 @@ public class StageATests
         var disconnected = Solve(Project(new[] { Fixed(1), End(2, 1), Fixed(3), End(4, 2) },
             new[] { Line(1, 1, 2, recorded: D(1)), Line(2, 3, 4, recorded: D(1)) },
             Block(new[] { C(2), C(1) }, N(1))));
-        Has(disconnected, DiagnosticCodes.DisconnectedBlock);
+        Has(disconnected, DiagnosticCodes.ParentAttachmentMismatch);
         var cycle = Solve(Project(new[] { End(1, 2), End(2, 1) },
-            new[] { Line(1, 1, 2, recorded: D(1)), Line(2, 2, 1, recorded: D(1)) },
+            new[] { Line(1, 1, 2, recorded: D(1), parent: C(2)),
+                Line(2, 2, 1, recorded: D(1)) },
             Block(new[] { C(1), C(2) }, N(1))));
-        Has(cycle, DiagnosticCodes.CircularDependency);
+        Has(cycle, DiagnosticCodes.ParentCycle);
         Assert.Empty(cycle.SolvedLines);
     }
 
@@ -252,5 +255,289 @@ public class StageATests
         Assert.Throws<NotSupportedException>(() => ((IDictionary<NodeId, DeedNode>)record.Nodes).Clear());
         Assert.Throws<NotSupportedException>(() => ((IDictionary<CourseId, StraightCourse>)record.Courses).Clear());
         Assert.Throws<NotSupportedException>(() => ((IDictionary<BlockId, DraftingBlock>)record.DraftingBlocks).Clear());
+    }
+
+    [Fact]
+    public void BranchesSolveFromAlongEndAndStartRegardlessOfStoredOrder()
+    {
+        var placements = new List<AlongPointPlacement>
+        {
+            new(N(3), D(20)), new(N(4), D(30))
+        };
+        var parent = Line(1, 1, 2, recorded: D(40), along: placements);
+        placements.Clear();
+        Assert.Equal(2, parent.AlongPoints.Count);
+        Assert.Throws<NotSupportedException>(() =>
+            ((IList<AlongPointPlacement>)parent.AlongPoints).Clear());
+        var courses = new[]
+        {
+            Line(4, 1, 7, "E", D(5), parent: C(1)),
+            Line(3, 2, 6, "E", D(5), parent: C(1)),
+            Line(2, 4, 5, "E", D(5), parent: C(1)), parent
+        };
+        var nodes = new[] { Fixed(1), End(2, 1),
+            new DeedNode(N(3), "witness", null, new AlongCourseNodeDefinition(C(1))),
+            new DeedNode(N(4), "witness", null, new AlongCourseNodeDefinition(C(1))),
+            End(5, 2), End(6, 3), End(7, 4) };
+        var project = Project(nodes, courses, Block(new[] { C(4), C(2), C(1), C(3) }, N(1)));
+        var result = Solve(project);
+        Assert.All(result.Diagnostics, d => Assert.Equal(DiagnosticSeverity.Warning, d.Severity));
+        Assert.Equal(20, result.NodeCoordinates[N(3)].Northing, 9);
+        Assert.Equal(50, result.NodeCoordinates[N(4)].Northing, 9);
+        Assert.Equal(5, result.NodeCoordinates[N(5)].Easting, 9);
+        Assert.Equal(50, result.NodeCoordinates[N(5)].Northing, 9);
+        Assert.Equal(40, result.NodeCoordinates[N(6)].Northing, 9);
+        Assert.Equal(0, result.NodeCoordinates[N(7)].Northing, 9);
+        Assert.Contains(result.Diagnostics, d => d.Code == DiagnosticCodes.AlongPointBeyondCourse);
+    }
+
+    [Fact]
+    public void PartSummaryReportsSignedHundredthAndDoesNotMoveEndpoint()
+    {
+        var placements = new[] { new AlongPointPlacement(N(3), D(86.25)),
+            new AlongPointPlacement(N(4), D(50)), new AlongPointPlacement(N(5), D(50)) };
+        var course = Line(1, 1, 2, recorded: D(250), along: placements, finalPart: D(63.74));
+        var nodes = new[] { Fixed(1), End(2, 1),
+            new DeedNode(N(3), "a", null, new AlongCourseNodeDefinition(C(1))),
+            new DeedNode(N(4), "b", null, new AlongCourseNodeDefinition(C(1))),
+            new DeedNode(N(5), "c", null, new AlongCourseNodeDefinition(C(1))) };
+        var result = Solve(Project(nodes, new[] { course }, Block(new[] { C(1) }, N(1))));
+        var summary = result.PartSummaries[C(1)];
+        Assert.Equal(186.25, summary.EnteredAlongParts);
+        Assert.Equal(63.74, summary.FinalPart);
+        Assert.Equal(249.99, summary.EnteredTotal);
+        Assert.Equal(0.01, summary.SignedDiscrepancy);
+        Assert.Null(summary.UnenteredRemainder);
+        Assert.Equal(250, result.NodeCoordinates[N(2)].Northing);
+        Assert.Contains(result.Diagnostics, d => d.Code == DiagnosticCodes.PartLengthDiscrepancy &&
+            d.Severity == DiagnosticSeverity.Warning);
+
+        var noFinal = Line(1, 1, 2, recorded: D(250), along: placements);
+        var remainder = Solve(Project(nodes, new[] { noFinal }, Block(new[] { C(1) }, N(1))))
+            .PartSummaries[C(1)];
+        Assert.Equal(63.75, remainder.UnenteredRemainder);
+        Assert.Null(remainder.SignedDiscrepancy);
+
+        var exact = Line(1, 1, 2, recorded: D(250), along: placements, finalPart: D(63.75));
+        var exactResult = Solve(Project(nodes, new[] { exact }, Block(new[] { C(1) }, N(1))));
+        Assert.Equal(0, exactResult.PartSummaries[C(1)].SignedDiscrepancy);
+        Assert.DoesNotContain(exactResult.Diagnostics,
+            d => d.Code == DiagnosticCodes.PartLengthDiscrepancy);
+    }
+
+    [Fact]
+    public void DraftedLengthNeverBecomesRecordedOverallForPartSummary()
+    {
+        var nodes = new[] { Fixed(1), End(2, 1),
+            new DeedNode(N(3), "along", null, new AlongCourseNodeDefinition(C(1))) };
+        var course = Line(1, 1, 2, drafted: new DraftedDistanceCompletion(D(100), "sketch"),
+            along: new[] { new AlongPointPlacement(N(3), D(30)) }, finalPart: D(70));
+        var result = Solve(Project(nodes, new[] { course }, Block(new[] { C(1) }, N(1))));
+        var summary = result.PartSummaries[C(1)];
+        Assert.Equal(30, summary.EnteredAlongParts);
+        Assert.Equal(70, summary.FinalPart);
+        Assert.Equal(100, summary.EnteredTotal);
+        Assert.Null(summary.UnenteredRemainder);
+        Assert.Null(summary.SignedDiscrepancy);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.PartLengthDiscrepancy);
+        Assert.Equal(100, result.NodeCoordinates[N(2)].Northing, 9);
+    }
+
+    [Fact]
+    public void IncompleteParentStillAllowsChildFromAvailableStart()
+    {
+        var courses = new[] { Line(1, 1, 2), Line(2, 1, 3, "E", D(7), parent: C(1)) };
+        var result = Solve(Project(new[] { Fixed(1), End(2, 1), End(3, 2) }, courses,
+            Block(new[] { C(2), C(1) }, N(1))));
+        Assert.Contains(result.Diagnostics, d => d.Code == DiagnosticCodes.IncompleteCourse);
+        Assert.False(result.SolvedLines.ContainsKey(C(1)));
+        Assert.Equal(7, result.NodeCoordinates[N(3)].Easting, 9);
+    }
+
+    [Fact]
+    public void AlongPointCanResolveWithoutParentEndpointDistance()
+    {
+        var courses = new[]
+        {
+            Line(1, 1, 2, along: new[] { new AlongPointPlacement(N(3), D(8)) }),
+            Line(2, 3, 4, "E", D(5), parent: C(1))
+        };
+        var nodes = new[] { Fixed(1), End(2, 1),
+            new DeedNode(N(3), "along", null, new AlongCourseNodeDefinition(C(1))), End(4, 2) };
+        var result = Solve(Project(nodes, courses, Block(new[] { C(2), C(1) }, N(1))));
+        Has(result, DiagnosticCodes.IncompleteCourse);
+        Assert.Equal(8, result.NodeCoordinates[N(3)].Northing, 9);
+        Assert.Equal(5, result.NodeCoordinates[N(4)].Easting, 9);
+        Assert.Equal(8, result.NodeCoordinates[N(4)].Northing, 9);
+    }
+
+    [Fact]
+    public void AlongPlacementAndParentErrorsHaveDistinctStructuralCodes()
+    {
+        var nodes = new[] { Fixed(1), End(2, 1), End(3, 2),
+            new DeedNode(N(4), "along", null, new AlongCourseNodeDefinition(C(1))),
+            new DeedNode(N(5), "along", null, new AlongCourseNodeDefinition(C(2))),
+            new DeedNode(N(6), "along", null, new AlongCourseNodeDefinition(C(1))) };
+        var courses = new[]
+        {
+            Line(1, 1, 2, recorded: D(10), along: new[]
+            {
+                new AlongPointPlacement(N(4), D(2)),
+                new AlongPointPlacement(N(4), D(3)),
+                new AlongPointPlacement(N(5), D(2))
+            }),
+            Line(2, 1, 3, recorded: D(2), parent: C(9))
+        };
+        var result = Solve(Project(nodes, courses, Block(new[] { C(1), C(2) }, N(1))));
+        Has(result, DiagnosticCodes.DuplicateAlongPlacement);
+        Has(result, DiagnosticCodes.AlongHostMismatch);
+        Has(result, DiagnosticCodes.InvalidParent);
+        Has(result, DiagnosticCodes.MissingAlongPlacement);
+    }
+
+    [Fact]
+    public void ParentInOtherBlockAndMultipleRootsAreRejected()
+    {
+        var courses = new[] { Line(1, 1, 2, recorded: D(2)),
+            Line(2, 2, 3, recorded: D(2), parent: C(1)) };
+        var blocks = new Dictionary<BlockId, DraftingBlock>
+        {
+            [B(1)] = Block(new[] { C(1) }, N(1)),
+            [B(2)] = new(B(2), "Second", T(1), null, 1, N(2), new[] { C(2) }, false)
+        };
+        var record = new DeedRecord(R(1), new[] { Fixed(1), End(2, 1), End(3, 2) }
+            .ToDictionary(n => n.Id), courses.ToDictionary(c => c.Id), blocks);
+        var project = new DeedProject(ProjectSettings.Default,
+            new Dictionary<DraftingTypeId, DraftingType>
+            { [T(1)] = new(T(1), "Boundary", DraftingCategory.Boundary) },
+            new Dictionary<RecordId, DeedRecord> { [R(1)] = record });
+        Has(Solve(project), DiagnosticCodes.ParentOutsideBlock);
+        Has(Solve(project), DiagnosticCodes.InvalidRootCount);
+    }
+
+    [Fact]
+    public void SiblingsMayShareTheSameParentEndpointInEitherCourseOrder()
+    {
+        var root = Line(1, 1, 2, recorded: D(10));
+        var east = Line(2, 2, 3, "E", D(5), parent: C(1));
+        var west = Line(3, 2, 4, "W", D(5), parent: C(1));
+        var nodes = new[] { Fixed(1), End(2, 1), End(3, 2), End(4, 3) };
+        var first = Solve(Project(nodes, new[] { west, east, root },
+            Block(new[] { C(3), C(1), C(2) }, N(1))));
+        var second = Solve(Project(nodes, new[] { root, east, west },
+            Block(new[] { C(2), C(3), C(1) }, N(1))));
+        Assert.Empty(first.Diagnostics);
+        Assert.Empty(second.Diagnostics);
+        foreach (var id in nodes.Select(n => n.Id))
+            Assert.Equal(first.NodeCoordinates[id], second.NodeCoordinates[id]);
+        Assert.Equal(5, first.NodeCoordinates[N(3)].Easting, 9);
+        Assert.Equal(10, first.NodeCoordinates[N(3)].Northing, 9);
+        Assert.Equal(-5, first.NodeCoordinates[N(4)].Easting, 9);
+        Assert.Equal(10, first.NodeCoordinates[N(4)].Northing, 9);
+    }
+
+    [Fact]
+    public void MissingParentIsReportedDirectly()
+    {
+        var project = Project(new[] { Fixed(1), End(2, 1), End(3, 2) },
+            new[] { Line(1, 1, 2, recorded: D(5)),
+                Line(2, 2, 3, recorded: D(5), parent: C(9)) },
+            Block(new[] { C(1), C(2) }, N(1)));
+        Has(Solve(project), DiagnosticCodes.InvalidParent);
+    }
+
+    [Fact]
+    public void CrossBlockParentIsReportedDirectly()
+    {
+        var courses = new[] { Line(1, 1, 2, recorded: D(5)),
+            Line(2, 3, 4, recorded: D(5)) with { ParentCourseId = null },
+            Line(3, 2, 5, "E", D(5), parent: C(1)) };
+        var blocks = new Dictionary<BlockId, DraftingBlock>
+        {
+            [B(1)] = Block(new[] { C(1) }, N(1)),
+            [B(2)] = new(B(2), "Second", T(1), null, 1, N(3),
+                new[] { C(3), C(2) }, false)
+        };
+        var record = new DeedRecord(R(1),
+            new[] { Fixed(1), End(2, 1), Fixed(3, 20, 0), End(4, 2), End(5, 3) }
+                .ToDictionary(n => n.Id), courses.ToDictionary(c => c.Id), blocks);
+        var project = new DeedProject(ProjectSettings.Default,
+            new Dictionary<DraftingTypeId, DraftingType>
+            { [T(1)] = new(T(1), "Boundary", DraftingCategory.Boundary) },
+            new Dictionary<RecordId, DeedRecord> { [R(1)] = record });
+        var result = Solve(project);
+        Has(result, DiagnosticCodes.ParentOutsideBlock);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.InvalidRootCount);
+    }
+
+    [Fact]
+    public void ParentAttachmentMismatchIsReportedDirectly()
+    {
+        var result = Solve(Project(new[] { Fixed(1), End(2, 1), Fixed(3, 20, 0), End(4, 2) },
+            new[] { Line(1, 1, 2, recorded: D(5)),
+                Line(2, 3, 4, recorded: D(5), parent: C(1)) },
+            Block(new[] { C(1), C(2) }, N(1))));
+        Has(result, DiagnosticCodes.ParentAttachmentMismatch);
+    }
+
+    [Fact]
+    public void ZeroAndMultipleRootsAreReportedSeparately()
+    {
+        var zero = Solve(Project(new[] { Fixed(1), End(2, 1) },
+            new[] { Line(1, 1, 2, recorded: D(5), parent: C(9)) },
+            Block(new[] { C(1) }, N(1))));
+        Has(zero, DiagnosticCodes.InvalidRootCount);
+        var multiple = Solve(Project(new[] { Fixed(1), End(2, 1), Fixed(3, 20, 0), End(4, 2) },
+            new[] { Line(1, 1, 2, recorded: D(5)),
+                Line(2, 3, 4, recorded: D(5)) with { ParentCourseId = null } },
+            Block(new[] { C(1), C(2) }, N(1))));
+        Has(multiple, DiagnosticCodes.InvalidRootCount);
+    }
+
+    [Fact]
+    public void ParentCycleHasStructuralDiagnostic()
+    {
+        var result = Solve(Project(new[] { End(1, 2), End(2, 1) },
+            new[] { Line(1, 1, 2, recorded: D(5), parent: C(2)),
+                Line(2, 2, 1, recorded: D(5), parent: C(1)) },
+            Block(new[] { C(1), C(2) }, N(1))));
+        Has(result, DiagnosticCodes.ParentCycle);
+    }
+
+    [Fact]
+    public void StageARootMustStartAtFixedNode()
+    {
+        var result = Solve(Project(new[] { End(1, 2), End(2, 1) },
+            new[] { Line(1, 1, 2, recorded: D(5)) },
+            Block(new[] { C(1) }, N(1))));
+        Assert.Contains(result.Diagnostics, d => d.Code == DiagnosticCodes.InvalidBlockOrigin &&
+            d.Message.Contains("fixed node", StringComparison.Ordinal));
+        var alongRoot = Solve(Project(new[]
+        {
+            new DeedNode(N(1), "pob", null, new AlongCourseNodeDefinition(C(1))), End(2, 1)
+        }, new[] { Line(1, 1, 2, recorded: D(5),
+            along: new[] { new AlongPointPlacement(N(1), D(0)) }) },
+            Block(new[] { C(1) }, N(1))));
+        Assert.Contains(alongRoot.Diagnostics, d => d.Code == DiagnosticCodes.InvalidBlockOrigin &&
+            d.Message.Contains("fixed node", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void EndingAtExistingPointsDoesNotChangeExplicitParentage()
+    {
+        var rootToFixed = Line(1, 1, 2, recorded: D(10));
+        var childToFixed = Line(2, 1, 2, recorded: D(10), parent: C(1));
+        var fixedResult = Solve(Project(new[] { Fixed(1), Fixed(2, 0, 10) },
+            new[] { childToFixed, rootToFixed }, Block(new[] { C(2), C(1) }, N(1))));
+        Assert.Empty(fixedResult.Diagnostics);
+        Assert.Equal(C(1), childToFixed.ParentCourseId);
+
+        var rootToOwned = Line(1, 1, 2, recorded: D(10));
+        var childToOwned = Line(2, 1, 2, recorded: D(10), parent: C(1));
+        var ownedResult = Solve(Project(new[] { Fixed(1), End(2, 1) },
+            new[] { childToOwned, rootToOwned }, Block(new[] { C(2), C(1) }, N(1))));
+        Assert.Empty(ownedResult.Diagnostics);
+        Assert.Equal(C(1), childToOwned.ParentCourseId);
+        Assert.Equal(2, ownedResult.SolvedLines.Count);
     }
 }

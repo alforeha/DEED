@@ -9,6 +9,7 @@ public sealed record DraftingType(DraftingTypeId Id, string Name, DraftingCatego
 public abstract record NodeDefinition;
 public sealed record FixedNodeDefinition(Coordinate2D Coordinate) : NodeDefinition;
 public sealed record CourseEndNodeDefinition(CourseId ProducingCourseId) : NodeDefinition;
+public sealed record AlongCourseNodeDefinition(CourseId HostCourseId) : NodeDefinition;
 
 public sealed record DeedNode(NodeId Id, string Role, Monument? Monument,
     NodeDefinition Definition);
@@ -17,10 +18,40 @@ public sealed record DraftedDistanceCompletion(Distance Distance, string Reason)
 
 public enum DrivingRealization { Recorded }
 
-public sealed record StraightCourse(CourseId Id, DraftingTypeId DraftingTypeId,
-    NodeId FromNodeId, NodeId ToNodeId, string OriginalRecordedText,
-    ParsedBearing? ParsedBearing, Distance? RecordedDistance, DraftedDistanceCompletion? DraftedCompletion)
+public readonly record struct AlongPointPlacement(NodeId NodeId, Distance FromPrevious);
+
+public sealed record StraightCourse
 {
+    public StraightCourse(CourseId id, DraftingTypeId draftingTypeId,
+        NodeId fromNodeId, NodeId toNodeId, CourseId? parentCourseId,
+        IEnumerable<AlongPointPlacement> alongPoints, Distance? finalPart,
+        string originalRecordedText, ParsedBearing? parsedBearing,
+        Distance? recordedDistance, DraftedDistanceCompletion? draftedCompletion)
+    {
+        Id = id;
+        DraftingTypeId = draftingTypeId;
+        FromNodeId = fromNodeId;
+        ToNodeId = toNodeId;
+        ParentCourseId = parentCourseId;
+        AlongPoints = Array.AsReadOnly(alongPoints.ToArray());
+        FinalPart = finalPart;
+        OriginalRecordedText = originalRecordedText;
+        ParsedBearing = parsedBearing;
+        RecordedDistance = recordedDistance;
+        DraftedCompletion = draftedCompletion;
+    }
+
+    public CourseId Id { get; init; }
+    public DraftingTypeId DraftingTypeId { get; init; }
+    public NodeId FromNodeId { get; init; }
+    public NodeId ToNodeId { get; init; }
+    public CourseId? ParentCourseId { get; init; }
+    public IReadOnlyList<AlongPointPlacement> AlongPoints { get; }
+    public Distance? FinalPart { get; init; }
+    public string OriginalRecordedText { get; init; }
+    public ParsedBearing? ParsedBearing { get; init; }
+    public Distance? RecordedDistance { get; init; }
+    public DraftedDistanceCompletion? DraftedCompletion { get; init; }
     public Bearing? Bearing => ParsedBearing?.Bearing;
     public DrivingRealization DrivingRealization => DrivingRealization.Recorded;
 }
