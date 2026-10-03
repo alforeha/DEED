@@ -10,7 +10,7 @@ public abstract record NodeDefinition;
 public sealed record FixedNodeDefinition(Coordinate2D Coordinate) : NodeDefinition;
 public sealed record CourseEndNodeDefinition(CourseId ProducingCourseId) : NodeDefinition;
 
-public sealed record DeedNode(NodeId Id, string RoleSymbol, string? MonumentInformation,
+public sealed record DeedNode(NodeId Id, string Role, Monument? Monument,
     NodeDefinition Definition);
 
 public sealed record DraftedDistanceCompletion(Distance Distance, string Reason);
@@ -19,8 +19,9 @@ public enum DrivingRealization { Recorded }
 
 public sealed record StraightCourse(CourseId Id, DraftingTypeId DraftingTypeId,
     NodeId FromNodeId, NodeId ToNodeId, string OriginalRecordedText,
-    Bearing? Bearing, Distance? RecordedDistance, DraftedDistanceCompletion? DraftedCompletion)
+    ParsedBearing? ParsedBearing, Distance? RecordedDistance, DraftedDistanceCompletion? DraftedCompletion)
 {
+    public Bearing? Bearing => ParsedBearing?.Bearing;
     public DrivingRealization DrivingRealization => DrivingRealization.Recorded;
 }
 
@@ -71,15 +72,17 @@ public sealed class DeedRecord
 public sealed class DeedProject
 {
     public DeedProject(ProjectSettings settings, IDictionary<DraftingTypeId, DraftingType> draftingTypes,
-        IDictionary<RecordId, DeedRecord> records)
+        IDictionary<RecordId, DeedRecord> records, ProjectIdCounters? idCounters = null)
     {
         Settings = settings;
         DraftingTypes = new ReadOnlyDictionary<DraftingTypeId, DraftingType>(
             new Dictionary<DraftingTypeId, DraftingType>(draftingTypes));
         Records = new ReadOnlyDictionary<RecordId, DeedRecord>(new Dictionary<RecordId, DeedRecord>(records));
+        IdCounters = idCounters ?? ProjectIdCounters.Empty;
     }
 
     public ProjectSettings Settings { get; }
     public IReadOnlyDictionary<DraftingTypeId, DraftingType> DraftingTypes { get; }
     public IReadOnlyDictionary<RecordId, DeedRecord> Records { get; }
+    public ProjectIdCounters IdCounters { get; }
 }

@@ -36,4 +36,8 @@ public static class DiagnosticCodes
     public const string UnresolvedDependency = "geometry.unresolved_dependency";
     public const string InvalidDraftedCompletion = "geometry.invalid_drafted_completion";
     public const string FixedEndMismatch = "geometry.fixed_end_mismatch";
+    public const string IdCounterBehind = "structure.id_counter_behind";
+    public const string IdSpaceExhausted = "structure.id_space_exhausted";
+    public const string DuplicateProjectId = "structure.duplicate_project_id";
+    public const string InvalidMonument = "structure.invalid_monument";
 }

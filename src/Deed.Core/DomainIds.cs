@@ -6,10 +6,11 @@ internal static class DomainId
     {
         if (value is not null && value.Length == prefix.Length + 5 &&
             value.StartsWith(prefix, StringComparison.Ordinal) &&
-            value.AsSpan(prefix.Length).IndexOfAnyExceptInRange('0', '9') < 0)
+            value.AsSpan(prefix.Length).IndexOfAnyExceptInRange('0', '9') < 0 &&
+            !value.AsSpan(prefix.Length).SequenceEqual("00000".AsSpan()))
             return DomainResult<string>.Success(value);
         return DomainResult<string>.Failure(DiagnosticCodes.InvalidId,
-            $"Expected {prefix} followed by exactly five ASCII decimal digits.");
+            $"Expected {prefix} followed by an ASCII decimal suffix from 00001 through 99999.");
     }
 }
 

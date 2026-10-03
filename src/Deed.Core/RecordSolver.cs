@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 namespace Deed.Core;
 
 public sealed record SolvedLine(CourseId CourseId, NodeId FromNodeId, NodeId ToNodeId,
-    Coordinate2D Start, Coordinate2D End, bool UsedDraftedDistance);
+    Coordinate2D Start, Coordinate2D ComputedRecordedEnd, bool UsedDraftedDistance);
 
 public sealed class RecordSolveResult
 {

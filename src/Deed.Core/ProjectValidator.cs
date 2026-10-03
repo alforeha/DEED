@@ -2,6 +2,87 @@ namespace Deed.Core;
 
 public static class ProjectValidator
 {
+    public static IReadOnlyList<Diagnostic> Validate(DeedProject project)
+    {
+        var diagnostics = new List<Diagnostic>();
+        void Add(string code, string message, string type, string id) =>
+            diagnostics.Add(new Diagnostic(code, DiagnosticSeverity.Error, message, type, id));
+        var maxima = new Dictionary<ProjectIdKind, int>();
+        var seenNodes = new HashSet<NodeId>();
+        var seenCourses = new HashSet<CourseId>();
+        var seenBlocks = new HashSet<BlockId>();
+        var seenRecordEntities = new HashSet<RecordId>();
+        var seenTypeEntities = new HashSet<DraftingTypeId>();
+        var seenNodeEntities = new HashSet<NodeId>();
+        var seenCourseEntities = new HashSet<CourseId>();
+        var seenBlockEntities = new HashSet<BlockId>();
+        void Count(ProjectIdKind kind, string value)
+        {
+            if (value.Length >= 5 && int.TryParse(value.AsSpan(value.Length - 5), out int number))
+                maxima[kind] = Math.Max(maxima.GetValueOrDefault(kind), number);
+        }
+        foreach (var (id, type) in project.DraftingTypes)
+        {
+            Count(ProjectIdKind.DraftingType, id.ToString());
+            Count(ProjectIdKind.DraftingType, type.Id.ToString());
+            if (id != type.Id)
+                Add(DiagnosticCodes.IdMismatch, "Drafting type key differs from its ID.", "draftingType", id.ToString());
+            if (!seenTypeEntities.Add(type.Id))
+                Add(DiagnosticCodes.DuplicateProjectId, "Drafting type entity ID occurs more than once.",
+                    "draftingType", type.Id.ToString());
+            if (!DraftingTypeId.TryParse(id.ToString()).IsSuccess ||
+                !DraftingTypeId.TryParse(type.Id.ToString()).IsSuccess)
+                Add(DiagnosticCodes.InvalidId, "Drafting type ID is not canonical.", "draftingType", id.ToString());
+        }
+        foreach (var (id, record) in project.Records)
+        {
+            Count(ProjectIdKind.Record, id.ToString());
+            Count(ProjectIdKind.Record, record.Id.ToString());
+            if (id != record.Id)
+                Add(DiagnosticCodes.IdMismatch, "Record key differs from its ID.", "record", id.ToString());
+            if (!seenRecordEntities.Add(record.Id))
+                Add(DiagnosticCodes.DuplicateProjectId, "Record entity ID occurs more than once.",
+                    "record", record.Id.ToString());
+            diagnostics.AddRange(Validate(project, record));
+            foreach (var (node, entity) in record.Nodes)
+            {
+                Count(ProjectIdKind.Node, node.ToString());
+                Count(ProjectIdKind.Node, entity.Id.ToString());
+                if (!seenNodes.Add(node))
+                    Add(DiagnosticCodes.DuplicateProjectId, "Node ID occurs in multiple records.", "node", node.ToString());
+                if (!seenNodeEntities.Add(entity.Id))
+                    Add(DiagnosticCodes.DuplicateProjectId, "Node entity ID occurs in multiple records.", "node", entity.Id.ToString());
+            }
+            foreach (var (course, entity) in record.Courses)
+            {
+                Count(ProjectIdKind.Course, course.ToString());
+                Count(ProjectIdKind.Course, entity.Id.ToString());
+                if (!seenCourses.Add(course))
+                    Add(DiagnosticCodes.DuplicateProjectId, "Course ID occurs in multiple records.", "course", course.ToString());
+                if (!seenCourseEntities.Add(entity.Id))
+                    Add(DiagnosticCodes.DuplicateProjectId, "Course entity ID occurs in multiple records.", "course", entity.Id.ToString());
+            }
+            foreach (var (block, entity) in record.DraftingBlocks)
+            {
+                Count(ProjectIdKind.Block, block.ToString());
+                Count(ProjectIdKind.Block, entity.Id.ToString());
+                if (!seenBlocks.Add(block))
+                    Add(DiagnosticCodes.DuplicateProjectId, "Block ID occurs in multiple records.", "block", block.ToString());
+                if (!seenBlockEntities.Add(entity.Id))
+                    Add(DiagnosticCodes.DuplicateProjectId, "Block entity ID occurs in multiple records.", "block", entity.Id.ToString());
+            }
+        }
+        foreach (var kind in Enum.GetValues<ProjectIdKind>())
+        {
+            int stored = project.IdCounters.Get(kind);
+            if (stored < 0 || stored > ProjectIdCounters.Maximum)
+                Add(DiagnosticCodes.InvalidSettings, "ID counter is outside 0 through 99999.", "idCounter", kind.ToString());
+            else if (stored < maxima.GetValueOrDefault(kind))
+                Add(DiagnosticCodes.IdCounterBehind, "ID counter is behind an existing ID.", "idCounter", kind.ToString());
+        }
+        return Array.AsReadOnly(diagnostics.ToArray());
+    }
+
     public static IReadOnlyList<Diagnostic> Validate(DeedProject project, DeedRecord record)
     {
         var diagnostics = new List<Diagnostic>();

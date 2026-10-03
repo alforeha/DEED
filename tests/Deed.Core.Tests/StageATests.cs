@@ -8,7 +8,7 @@ public class StageATests
     private static NodeId N(int n) => NodeId.TryParse($"n-{n:00000}").Value;
     private static DraftingTypeId T(int n) => DraftingTypeId.TryParse($"dt-{n:00000}").Value;
     private static Distance D(double value) => Distance.TryCreate(value).Value;
-    private static Bearing Bearing(string text) => BearingParser.Parse(text).Value.Bearing;
+    private static ParsedBearing Bearing(string text) => BearingParser.Parse(text).Value;
     private static DeedNode Fixed(int n, double x = 0, double y = 0) =>
         new(N(n), "point", null, new FixedNodeDefinition(new(x, y)));
     private static DeedNode End(int n, int course) =>
@@ -223,7 +223,7 @@ public class StageATests
         var result = Solve(Project(new[] { Fixed(1), Fixed(2, 0, 11) },
             new[] { Line(1, 1, 2, recorded: D(10)) }, Block(new[] { C(1) }, N(1))));
         Assert.Equal(11, result.NodeCoordinates[N(2)].Northing);
-        Assert.Equal(10, result.SolvedLines[C(1)].End.Northing);
+        Assert.Equal(10, result.SolvedLines[C(1)].ComputedRecordedEnd.Northing);
         Has(result, DiagnosticCodes.FixedEndMismatch);
     }
 

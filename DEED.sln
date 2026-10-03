@@ -11,6 +11,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3A474734
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deed.Core.Tests", "tests\Deed.Core.Tests\Deed.Core.Tests.csproj", "{4CC127ED-AFB5-47ED-8ED9-FFC9DA9CCA79}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deed.Persistence", "src\Deed.Persistence\Deed.Persistence.csproj", "{89FDB9FB-02B6-47B3-BB18-4E3FBA8BC5A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deed.Persistence.Tests", "tests\Deed.Persistence.Tests\Deed.Persistence.Tests.csproj", "{B9E58F94-8456-473E-8AEC-D0B7A4703910}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +32,19 @@ Global
 		{4CC127ED-AFB5-47ED-8ED9-FFC9DA9CCA79}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4CC127ED-AFB5-47ED-8ED9-FFC9DA9CCA79}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4CC127ED-AFB5-47ED-8ED9-FFC9DA9CCA79}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89FDB9FB-02B6-47B3-BB18-4E3FBA8BC5A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89FDB9FB-02B6-47B3-BB18-4E3FBA8BC5A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89FDB9FB-02B6-47B3-BB18-4E3FBA8BC5A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89FDB9FB-02B6-47B3-BB18-4E3FBA8BC5A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B9E58F94-8456-473E-8AEC-D0B7A4703910}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B9E58F94-8456-473E-8AEC-D0B7A4703910}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B9E58F94-8456-473E-8AEC-D0B7A4703910}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B9E58F94-8456-473E-8AEC-D0B7A4703910}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{32DDE844-4EF1-4FFA-A684-99198ADF8AFB} = {3755281F-0AC0-492E-8893-6139EF7421D1}
 		{4CC127ED-AFB5-47ED-8ED9-FFC9DA9CCA79} = {3A474734-A1BD-452C-96D8-AD5B48E43231}
+		{89FDB9FB-02B6-47B3-BB18-4E3FBA8BC5A1} = {3755281F-0AC0-492E-8893-6139EF7421D1}
+		{B9E58F94-8456-473E-8AEC-D0B7A4703910} = {3A474734-A1BD-452C-96D8-AD5B48E43231}
 	EndGlobalSection
 EndGlobal

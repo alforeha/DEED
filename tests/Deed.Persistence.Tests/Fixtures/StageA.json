@@ -1,0 +1,122 @@
+{
+  "format": "DEED",
+  "schemaVersion": 1,
+  "appVersion": "0.1.0",
+  "created": "2026-01-02T03:04:05.0000000Z",
+  "modified": "2026-02-03T04:05:06.0000000Z",
+  "settings": {
+    "tolerances": {
+      "coincidenceDistance": 0.01,
+      "linearElementDifference": 0.01,
+      "angularElementDifferenceSeconds": 1,
+      "minimumClosurePrecision": 5000,
+      "futureTolerance": { "samples": [1, false, { "unit": "survey" }] }
+    },
+    "ext": { "vendor": { "flags": ["a", "b"] } },
+    "futureSettings": [null, 9]
+  },
+  "idCounters": { "rec": 1, "blk": 1, "c": 3, "n": 4, "dt": 1 },
+  "draftingTypes": {
+    "dt-00001": {
+      "name": "Boundary",
+      "category": "boundary",
+      "ext": { "linework": { "color": [2, 4, 8] } },
+      "futureType": { "styles": ["solid", { "width": 2 }] }
+    }
+  },
+  "records": {
+    "rec-00001": {
+      "nodes": {
+        "n-00001": {
+          "definition": { "kind": "fixed", "at": [1000.0, 2000.0] },
+          "role": "pob",
+          "monument": {
+            "description": "1/2 inch iron rod with cap LS 4471",
+            "evidence": "found",
+            "ext": { "inspection": { "photos": ["north", "cap"] } },
+            "futureMonument": { "measurements": [0.5, { "unit": "inch" }] }
+          },
+          "ext": { "source": { "page": 7 } },
+          "futureNode": ["pin", { "quality": "good" }]
+        },
+        "n-00002": {
+          "definition": { "kind": "courseEnd", "course": "c-00001" },
+          "role": "boundaryCorner",
+          "monument": null
+        },
+        "n-00003": {
+          "definition": { "kind": "courseEnd", "course": "c-00002" },
+          "role": "boundaryCorner",
+          "monument": null
+        },
+        "n-00004": {
+          "definition": { "kind": "courseEnd", "course": "c-00003" },
+          "role": "boundaryCorner",
+          "monument": null
+        }
+      },
+      "courses": {
+        "c-00001": {
+          "type": "dt-00001",
+          "from": "n-00001",
+          "to": "n-00002",
+          "recorded": {
+            "kind": "line",
+            "text": "  Thence North 45 degrees East, 100.00 feet  ",
+            "bearing": "  n 45° 00' 00\" e  ",
+            "length": 100.0
+          },
+          "drafted": null,
+          "driving": "recorded",
+          "ext": { "source": { "tokens": ["N", "45", "E"] } },
+          "futureCourse": { "observations": [1, { "valid": true }] }
+        },
+        "c-00002": {
+          "type": "dt-00001",
+          "from": "n-00002",
+          "to": "n-00003",
+          "recorded": {
+            "kind": "line",
+            "text": "Thence S45E 100 feet",
+            "bearing": "S45E",
+            "length": 100.0
+          },
+          "drafted": null,
+          "driving": "recorded"
+        },
+        "c-00003": {
+          "type": "dt-00001",
+          "from": "n-00003",
+          "to": "n-00004",
+          "recorded": {
+            "kind": "line",
+            "text": "Thence S45W; distance omitted in source",
+            "bearing": "S45W",
+            "length": null
+          },
+          "drafted": {
+            "length": { "value": 100.0, "reason": "Scaled from survey sketch" }
+          },
+          "driving": "recorded"
+        }
+      },
+      "blocks": {
+        "blk-00001": {
+          "name": "Boundary",
+          "type": "dt-00001",
+          "parentBlock": null,
+          "viewOrder": 0,
+          "origin": "n-00001",
+          "reportClose": false,
+          "courses": ["c-00003", "c-00001", "c-00002"],
+          "ext": { "labels": ["main", { "side": "north" }] },
+          "futureBlock": { "visible": true }
+        }
+      },
+      "ext": { "registry": { "book": 12, "pages": [4, 5] } },
+      "futureRecord": [1, { "kind": "survey" }]
+    }
+  },
+  "ext": { "producer": { "name": "fixture", "features": ["future", 2] } },
+  "futureEnvelope": { "nested": [false, null, { "number": 7.25 }] }
+}
