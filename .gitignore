@@ -1,0 +1,15 @@
+_DOCS/
+**/bin/
+**/obj/
+.vs/
+.idea/
+.vscode/
+TestResults/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.coverage
+*.coveragexml
+*.deed.cache.json
